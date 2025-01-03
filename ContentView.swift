@@ -8,27 +8,85 @@
 import SwiftUI
 import SwiftData
 
+// Define the Contact struct for stack rank data
+struct Contact: Identifiable {
+    let id = UUID()
+    let name: String
+    let cadence: Int
+    let lastContactDate: Date
+
+    var urgency: Int {
+        let today = Date()
+        let daysSinceLastContact = Calendar.current.dateComponents([.day], from: lastContactDate, to: today).day ?? 0
+        return daysSinceLastContact - cadence
+    }
+
+    var touchpointStatus: String {
+        if urgency < 0 {
+            let daysRemaining = -urgency
+            if daysRemaining == 1 {
+                return "Due tomorrow"
+            } else {
+                return "Due in \(daysRemaining) days"
+            }
+        } else if urgency == 0 {
+            return "Due today"
+        } else {
+            return "Overdue by \(urgency) days"
+        }
+    }
+
+    var statusColor: Color {
+        if urgency > 0 {
+            return .red
+        } else if urgency == 0 {
+            return .blue
+        } else if urgency == -1 {
+            return .yellow
+        } else {
+            return .green
+        }
+    }
+}
+
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var contacts = [
+        Contact(name: "John Doe", cadence: 2, lastContactDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!),
+        Contact(name: "Jane Smith", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!),
+        Contact(name: "Alice Johnson", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())!),
+        Contact(name: "Robert Brown", cadence: 7, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!),
+        Contact(name: "Emily Davis", cadence: 30, lastContactDate: Calendar.current.date(byAdding: .day, value: -25, to: Date())!),
+        Contact(name: "Chris Wilson", cadence: 14, lastContactDate: Calendar.current.date(byAdding: .day, value: -20, to: Date())!)
+    ]
 
     var body: some View {
         NavigationSplitView {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                Section(header: Text("Touchpoints")) {
+                    ForEach(contacts.sorted(by: { $0.urgency > $1.urgency })) { contact in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(contact.name)
+                                    .font(.headline)
+                                Text(contact.touchpointStatus)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            Spacer()
+                            Circle()
+                                .fill(contact.statusColor)
+                                .frame(width: 12, height: 12)
+                        }
+                        .padding(.vertical, 5)
                     }
                 }
-                .onDelete(perform: deleteItems)
             }
             .toolbar {
+                // Toolbar Items
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
                 }
-                ToolbarItem {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: addItem) {
                         Label("Add Item", systemImage: "plus")
                     }
@@ -39,19 +97,17 @@ struct ContentView: View {
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    // Debugging function (must be declared outside 'body')
+    private func debugContacts() {
+        for contact in contacts {
+            let daysSinceLastContact = Calendar.current.dateComponents([.day], from: contact.lastContactDate, to: Date()).day ?? 0
+            print("\(contact.name): daysSinceLastContact = \(daysSinceLastContact), cadence = \(contact.cadence), urgency = \(contact.urgency)")
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
+    // Placeholder function for adding items
+    private func addItem() {
+        print("Add item functionality not implemented yet.")
     }
 }
 
