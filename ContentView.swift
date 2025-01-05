@@ -62,27 +62,33 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List {
-                Section(header: Text("Touchpoints")) {
-                    ForEach(contacts.sorted(by: { $0.urgency > $1.urgency })) { contact in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(contact.name)
-                                    .font(.headline)
-                                Text(contact.touchpointStatus)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
+                if contacts.isEmpty {
+                    Text("No touchpoints available. Add a new one!")
+                        .foregroundColor(.gray)
+                        .italic()
+                } else {
+                    Section(header: Text("Touchpoints")) {
+                        ForEach(contacts.sorted(by: { $0.urgency > $1.urgency })) { contact in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(contact.name)
+                                        .font(.headline)
+                                    Text(contact.touchpointStatus)
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Button(action: { handleAction(for: contact) }) {
+                                    Image(systemName: iconName(for: contact.preferredAction))
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(BorderlessButtonStyle())
+                                Circle()
+                                    .fill(contact.statusColor)
+                                    .frame(width: 12, height: 12)
                             }
-                            Spacer()
-                            Button(action: { handleAction(for: contact) }) {
-                                Image(systemName: iconName(for: contact.preferredAction))
-                                    .foregroundColor(.blue)
-                            }
-                            .buttonStyle(BorderlessButtonStyle())
-                            Circle()
-                                .fill(contact.statusColor)
-                                .frame(width: 12, height: 12)
+                            .padding(.vertical, 5)
                         }
-                        .padding(.vertical, 5)
                     }
                 }
             }

@@ -12,6 +12,7 @@ struct NewTouchpointView: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var contactName: String = ""
     @State private var cadence: Int = 7 // Default to weekly
+    @State private var customCadence: Int = 7 // Custom cadence default
     @State private var preferredAction: String = "Text"
 
     let saveTouchpoint: (Contact) -> Void
@@ -30,9 +31,18 @@ struct NewTouchpointView: View {
                         Text("Daily").tag(1)
                         Text("Weekly").tag(7)
                         Text("Monthly").tag(30)
-                        Text("Custom (e.g., 14 days)").tag(14) // Add more options as needed
+                        Text("Custom").tag(0) // Tag 0 for Custom
                     }
-                    .pickerStyle(WheelPickerStyle())
+                    .pickerStyle(SegmentedPickerStyle())
+
+                    if cadence == 0 { // Show input for custom cadence
+                        TextField("Enter custom days (1–365)", value: $customCadence, formatter: NumberFormatter())
+                            .keyboardType(.numberPad)
+                            .onChange(of: customCadence) { newValue in
+                                if newValue < 1 { customCadence = 1 }
+                                if newValue > 365 { customCadence = 365 }
+                            }
+                    }
                 }
 
                 Section(header: Text("Preferred Action")) {
@@ -65,11 +75,12 @@ struct NewTouchpointView: View {
 
     private func save() {
         guard !contactName.isEmpty else { return }
+        let effectiveCadence = cadence == 0 ? customCadence : cadence
         let newTouchpoint = Contact(
             name: contactName,
-            cadence: cadence,
-            lastContactDate: Date(), // Default to now
-            preferredAction: preferredAction // Pass the preferred action here
+            cadence: effectiveCadence,
+            lastContactDate: Date(),
+            preferredAction: preferredAction
         )
         saveTouchpoint(newTouchpoint)
         presentationMode.wrappedValue.dismiss()
@@ -79,3 +90,4 @@ struct NewTouchpointView: View {
 #Preview {
     NewTouchpointView(saveTouchpoint: { _ in })
 }
+
