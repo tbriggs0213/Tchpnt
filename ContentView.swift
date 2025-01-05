@@ -13,7 +13,8 @@ struct Contact: Identifiable {
     let id = UUID()
     let name: String
     let cadence: Int
-    let lastContactDate: Date
+    var lastContactDate: Date // Changed to var to make it mutable
+    let preferredAction: String // "Text", "Call", or "Meet Up"
 
     var urgency: Int {
         let today = Date()
@@ -24,11 +25,7 @@ struct Contact: Identifiable {
     var touchpointStatus: String {
         if urgency < 0 {
             let daysRemaining = -urgency
-            if daysRemaining == 1 {
-                return "Due tomorrow"
-            } else {
-                return "Due in \(daysRemaining) days"
-            }
+            return daysRemaining == 1 ? "Due tomorrow" : "Due in \(daysRemaining) days"
         } else if urgency == 0 {
             return "Due today"
         } else {
@@ -51,13 +48,16 @@ struct Contact: Identifiable {
 
 struct ContentView: View {
     @State private var contacts = [
-        Contact(name: "John Doe", cadence: 2, lastContactDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!),
-        Contact(name: "Jane Smith", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!),
-        Contact(name: "Alice Johnson", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())!),
-        Contact(name: "Robert Brown", cadence: 7, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!),
-        Contact(name: "Emily Davis", cadence: 30, lastContactDate: Calendar.current.date(byAdding: .day, value: -25, to: Date())!),
-        Contact(name: "Chris Wilson", cadence: 14, lastContactDate: Calendar.current.date(byAdding: .day, value: -20, to: Date())!)
+        Contact(name: "John Doe", cadence: 2, lastContactDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, preferredAction: "Text"),
+        Contact(name: "Jane Smith", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Call"),
+        Contact(name: "Alice Johnson", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())!, preferredAction: "Meet Up"),
+        Contact(name: "Robert Brown", cadence: 7, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Text"),
+        Contact(name: "Emily Davis", cadence: 30, lastContactDate: Calendar.current.date(byAdding: .day, value: -25, to: Date())!, preferredAction: "Call"),
+        Contact(name: "Chris Wilson", cadence: 14, lastContactDate: Calendar.current.date(byAdding: .day, value: -20, to: Date())!, preferredAction: "Meet Up")
     ]
+
+    @State private var showResetAlert = false
+    @State private var selectedContact: Contact?
 
     var body: some View {
         NavigationSplitView {
@@ -73,6 +73,11 @@ struct ContentView: View {
                                     .foregroundColor(.gray)
                             }
                             Spacer()
+                            Button(action: { handleAction(for: contact) }) {
+                                Image(systemName: iconName(for: contact.preferredAction))
+                                    .foregroundColor(.blue)
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
                             Circle()
                                 .fill(contact.statusColor)
                                 .frame(width: 12, height: 12)
@@ -87,7 +92,9 @@ struct ContentView: View {
                     EditButton()
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: addItem) {
+                    NavigationLink(destination: NewTouchpointView(saveTouchpoint: { newContact in
+                        contacts.append(newContact)
+                    })) {
                         Label("Add Item", systemImage: "plus")
                     }
                 }
@@ -95,19 +102,67 @@ struct ContentView: View {
         } detail: {
             Text("Select an item")
         }
-    }
-
-    // Debugging function (must be declared outside 'body')
-    private func debugContacts() {
-        for contact in contacts {
-            let daysSinceLastContact = Calendar.current.dateComponents([.day], from: contact.lastContactDate, to: Date()).day ?? 0
-            print("\(contact.name): daysSinceLastContact = \(daysSinceLastContact), cadence = \(contact.cadence), urgency = \(contact.urgency)")
+        .alert(isPresented: $showResetAlert) {
+            Alert(
+                title: Text("Reset Touchpoint"),
+                message: Text("Do you want to reset \(selectedContact?.name ?? "")'s touchpoint?"),
+                primaryButton: .default(Text("Yes"), action: {
+                    if let contact = selectedContact {
+                        resetTouchpoint(for: contact)
+                    }
+                }),
+                secondaryButton: .cancel()
+            )
         }
     }
 
-    // Placeholder function for adding items
-    private func addItem() {
-        print("Add item functionality not implemented yet.")
+    private func iconName(for action: String) -> String {
+        switch action {
+        case "Text":
+            return "message"
+        case "Call":
+            return "phone"
+        case "Meet Up":
+            return "person"
+        default:
+            return "questionmark"
+        }
+    }
+
+    private func handleAction(for contact: Contact) {
+        switch contact.preferredAction {
+        case "Text":
+            openMessages(for: contact)
+        case "Call":
+            makeCall(to: contact)
+        case "Meet Up":
+            promptReset(for: contact)
+        default:
+            break
+        }
+    }
+
+    private func openMessages(for contact: Contact) {
+        guard let url = URL(string: "sms:") else { return }
+        UIApplication.shared.open(url)
+        promptReset(for: contact)
+    }
+
+    private func makeCall(to contact: Contact) {
+        guard let url = URL(string: "tel://") else { return }
+        UIApplication.shared.open(url)
+        promptReset(for: contact)
+    }
+
+    private func promptReset(for contact: Contact) {
+        selectedContact = contact
+        showResetAlert = true
+    }
+
+    private func resetTouchpoint(for contact: Contact) {
+        if let index = contacts.firstIndex(where: { $0.id == contact.id }) {
+            contacts[index].lastContactDate = Date()
+        }
     }
 }
 
