@@ -12,8 +12,9 @@ import SwiftData
 struct Contact: Identifiable {
     let id = UUID()
     let name: String
+    let phoneNumber: String // Store phone number for actual contact linkage
     let cadence: Int
-    var lastContactDate: Date // Changed to var to make it mutable
+    var lastContactDate: Date // Mutable for resetting
     let preferredAction: String // "Text", "Call", or "Meet Up"
 
     var urgency: Int {
@@ -47,13 +48,13 @@ struct Contact: Identifiable {
 }
 
 struct ContentView: View {
-    @State private var contacts = [
-        Contact(name: "John Doe", cadence: 2, lastContactDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, preferredAction: "Text"),
-        Contact(name: "Jane Smith", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Call"),
-        Contact(name: "Alice Johnson", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())!, preferredAction: "Meet Up"),
-        Contact(name: "Robert Brown", cadence: 7, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Text"),
-        Contact(name: "Emily Davis", cadence: 30, lastContactDate: Calendar.current.date(byAdding: .day, value: -25, to: Date())!, preferredAction: "Call"),
-        Contact(name: "Chris Wilson", cadence: 14, lastContactDate: Calendar.current.date(byAdding: .day, value: -20, to: Date())!, preferredAction: "Meet Up")
+    @State private var contacts: [Contact] = [
+        Contact(name: "John Doe", phoneNumber: "123-456-7890", cadence: 2, lastContactDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, preferredAction: "Text"),
+        Contact(name: "Jane Smith", phoneNumber: "987-654-3210", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Call"),
+        Contact(name: "Alice Johnson", phoneNumber: "555-123-4567", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())!, preferredAction: "Meet Up"),
+        Contact(name: "Robert Brown", phoneNumber: "111-222-3333", cadence: 7, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Text"),
+        Contact(name: "Emily Davis", phoneNumber: "444-555-6666", cadence: 30, lastContactDate: Calendar.current.date(byAdding: .day, value: -25, to: Date())!, preferredAction: "Call"),
+        Contact(name: "Chris Wilson", phoneNumber: "777-888-9999", cadence: 14, lastContactDate: Calendar.current.date(byAdding: .day, value: -20, to: Date())!, preferredAction: "Meet Up")
     ]
 
     @State private var showResetAlert = false
@@ -98,9 +99,12 @@ struct ContentView: View {
                     EditButton()
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: NewTouchpointView(saveTouchpoint: { newContact in
-                        contacts.append(newContact)
-                    })) {
+                    NavigationLink(destination: NewTouchpointView(
+                        saveTouchpoint: { newContact in
+                            contacts.append(newContact)
+                        },
+                        existingContacts: contacts // Pass existing contacts to check for duplicates
+                    )) {
                         Label("Add Item", systemImage: "plus")
                     }
                 }
@@ -149,13 +153,13 @@ struct ContentView: View {
     }
 
     private func openMessages(for contact: Contact) {
-        guard let url = URL(string: "sms:") else { return }
+        guard let url = URL(string: "sms:\(contact.phoneNumber)") else { return }
         UIApplication.shared.open(url)
         promptReset(for: contact)
     }
 
     private func makeCall(to contact: Contact) {
-        guard let url = URL(string: "tel://") else { return }
+        guard let url = URL(string: "tel://\(contact.phoneNumber)") else { return }
         UIApplication.shared.open(url)
         promptReset(for: contact)
     }
