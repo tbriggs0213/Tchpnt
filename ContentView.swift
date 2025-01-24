@@ -23,24 +23,11 @@ struct Contact: Identifiable {
         return daysSinceLastContact - cadence
     }
 
-    var touchpointStatus: String {
-        if urgency < 0 {
-            let daysRemaining = -urgency
-            return daysRemaining == 1 ? "Due tomorrow" : "Due in \(daysRemaining) days"
-        } else if urgency == 0 {
-            return "Due today"
-        } else {
-            return "Overdue by \(urgency) days"
-        }
-    }
-
     var statusColor: Color {
         if urgency > 0 {
             return .red
         } else if urgency == 0 {
             return .blue
-        } else if urgency == -1 {
-            return .yellow
         } else {
             return .green
         }
@@ -48,17 +35,10 @@ struct Contact: Identifiable {
 }
 
 struct ContentView: View {
-    @State private var contacts: [Contact] = [
-        Contact(name: "John Doe", phoneNumber: "123-456-7890", cadence: 2, lastContactDate: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, preferredAction: "Text"),
-        Contact(name: "Jane Smith", phoneNumber: "987-654-3210", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Call"),
-        Contact(name: "Alice Johnson", phoneNumber: "555-123-4567", cadence: 1, lastContactDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())!, preferredAction: "Meet Up"),
-        Contact(name: "Robert Brown", phoneNumber: "111-222-3333", cadence: 7, lastContactDate: Calendar.current.date(byAdding: .day, value: -3, to: Date())!, preferredAction: "Text"),
-        Contact(name: "Emily Davis", phoneNumber: "444-555-6666", cadence: 30, lastContactDate: Calendar.current.date(byAdding: .day, value: -25, to: Date())!, preferredAction: "Call"),
-        Contact(name: "Chris Wilson", phoneNumber: "777-888-9999", cadence: 14, lastContactDate: Calendar.current.date(byAdding: .day, value: -20, to: Date())!, preferredAction: "Meet Up")
-    ]
-
+    @State private var contacts: [Contact] = []
     @State private var showResetAlert = false
     @State private var selectedContact: Contact?
+    @State private var expandedContactId: UUID?
 
     var body: some View {
         NavigationSplitView {
@@ -69,35 +49,65 @@ struct ContentView: View {
                         .italic()
                 } else {
                     Section(header: Text("Touchpoints")) {
-                        ForEach(contacts.sorted(by: { $0.urgency > $1.urgency })) { contact in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(contact.name)
-                                        .font(.headline)
-                                    Text(contact.touchpointStatus)
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
+                        ForEach(contacts.sorted(by: { $0.lastContactDate < $1.lastContactDate })) { contact in
+                            VStack {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(contact.name)
+                                            .font(.headline)
+                                        Text(contactStatus(for: contact))
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray)
+                                    }
+                                    Spacer()
+                                    Button(action: { handleAction(for: contact) }) {
+                                        Image(systemName: iconName(for: contact.preferredAction))
+                                            .foregroundColor(.blue)
+                                    }
+                                    .buttonStyle(BorderlessButtonStyle())
+                                    
+                                    Circle()
+                                        .fill(contact.statusColor)
+                                        .frame(width: 12, height: 12)
                                 }
-                                Spacer()
-                                Button(action: { handleAction(for: contact) }) {
-                                    Image(systemName: iconName(for: contact.preferredAction))
-                                        .foregroundColor(.blue)
+                                .padding(.vertical, 5)
+                                .contentShape(Rectangle()) // Ensure the entire row is tappable
+                                .onTapGesture {
+                                    if expandedContactId == contact.id {
+                                        expandedContactId = nil
+                                    } else {
+                                        expandedContactId = contact.id
+                                    }
                                 }
-                                .buttonStyle(BorderlessButtonStyle())
-                                Circle()
-                                    .fill(contact.statusColor)
-                                    .frame(width: 12, height: 12)
+                                
+                                if expandedContactId == contact.id {
+                                    HStack {
+                                        Button(action: { openMessages(for: contact) }) {
+                                            Image(systemName: "message")
+                                            Text("Text")
+                                        }
+                                        .buttonStyle(.bordered)
+                                        
+                                        Button(action: { makeCall(to: contact) }) {
+                                            Image(systemName: "phone")
+                                            Text("Call")
+                                        }
+                                        .buttonStyle(.bordered)
+                                        
+                                        Button(action: { promptReset(for: contact) }) {
+                                            Image(systemName: "person")
+                                            Text("Meet Up")
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                    .padding(.top, 5)
+                                }
                             }
-                            .padding(.vertical, 5)
                         }
                     }
                 }
             }
             .toolbar {
-                // Toolbar Items
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: NewTouchpointView(
                         saveTouchpoint: { newContact in
@@ -126,6 +136,33 @@ struct ContentView: View {
         }
     }
 
+    private func contactStatus(for contact: Contact) -> String {
+        let daysSinceLastContact = Calendar.current.dateComponents([.day], from: contact.lastContactDate, to: Date()).day ?? 0
+        let overdueDays = daysSinceLastContact - contact.cadence
+        if overdueDays > 0 {
+            return "Overdue by \(overdueDays) days"
+        } else if overdueDays == 0 {
+            return "Due today"
+        } else {
+            return "Due in \(-overdueDays) days"
+        }
+    }
+
+    private func openMessages(for contact: Contact) {
+        guard let url = URL(string: "sms:\(contact.phoneNumber)") else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func makeCall(to contact: Contact) {
+        guard let url = URL(string: "tel:\(contact.phoneNumber)") else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func promptReset(for contact: Contact) {
+        selectedContact = contact
+        showResetAlert = true
+    }
+
     private func iconName(for action: String) -> String {
         switch action {
         case "Text":
@@ -150,23 +187,6 @@ struct ContentView: View {
         default:
             break
         }
-    }
-
-    private func openMessages(for contact: Contact) {
-        guard let url = URL(string: "sms:\(contact.phoneNumber)") else { return }
-        UIApplication.shared.open(url)
-        promptReset(for: contact)
-    }
-
-    private func makeCall(to contact: Contact) {
-        guard let url = URL(string: "tel://\(contact.phoneNumber)") else { return }
-        UIApplication.shared.open(url)
-        promptReset(for: contact)
-    }
-
-    private func promptReset(for contact: Contact) {
-        selectedContact = contact
-        showResetAlert = true
     }
 
     private func resetTouchpoint(for contact: Contact) {
