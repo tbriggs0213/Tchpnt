@@ -1,21 +1,15 @@
-//
-//  ContentView.swift
-//  Tchpnt
-//
-//  Created by Tanner Briggs on 1/3/25.
-//
-
 import SwiftUI
 import SwiftData
 
-// Define the Contact struct for stack rank data
-struct Contact: Identifiable {
-    let id = UUID()
-    let name: String
-    let phoneNumber: String // Store phone number for actual contact linkage
-    let cadence: Int
-    var lastContactDate: Date // Mutable for resetting
-    let preferredAction: String // "Text", "Call", or "Meet Up"
+// ✅ Define the Contact model for SwiftData persistence
+@Model
+class Contact: Identifiable {
+    var id: UUID
+    var name: String
+    var phoneNumber: String
+    var cadence: Int
+    var lastContactDate: Date
+    var preferredAction: String // "Text", "Call", or "Meet Up"
 
     var urgency: Int {
         let today = Date()
@@ -32,13 +26,25 @@ struct Contact: Identifiable {
             return .green
         }
     }
+
+    init(name: String, phoneNumber: String, cadence: Int, lastContactDate: Date, preferredAction: String) {
+        self.id = UUID()
+        self.name = name
+        self.phoneNumber = phoneNumber
+        self.cadence = cadence
+        self.lastContactDate = lastContactDate
+        self.preferredAction = preferredAction
+    }
 }
 
 struct ContentView: View {
-    @State private var contacts: [Contact] = []
+    @Environment(\.modelContext) private var modelContext
+    @Query private var contacts: [Contact]
+
     @State private var showResetAlert = false
     @State private var selectedContact: Contact?
     @State private var expandedContactId: UUID?
+    @State private var refreshTrigger = false
 
     var body: some View {
         NavigationSplitView {
@@ -65,13 +71,13 @@ struct ContentView: View {
                                             .foregroundColor(.blue)
                                     }
                                     .buttonStyle(BorderlessButtonStyle())
-                                    
+
                                     Circle()
                                         .fill(contact.statusColor)
                                         .frame(width: 12, height: 12)
                                 }
                                 .padding(.vertical, 5)
-                                .contentShape(Rectangle()) // Ensure the entire row is tappable
+                                .contentShape(Rectangle())
                                 .onTapGesture {
                                     if expandedContactId == contact.id {
                                         expandedContactId = nil
@@ -79,7 +85,7 @@ struct ContentView: View {
                                         expandedContactId = contact.id
                                     }
                                 }
-                                
+
                                 if expandedContactId == contact.id {
                                     HStack {
                                         Button(action: { openMessages(for: contact) }) {
@@ -87,13 +93,13 @@ struct ContentView: View {
                                             Text("Text")
                                         }
                                         .buttonStyle(.bordered)
-                                        
+
                                         Button(action: { makeCall(to: contact) }) {
                                             Image(systemName: "phone")
                                             Text("Call")
                                         }
                                         .buttonStyle(.bordered)
-                                        
+
                                         Button(action: { promptReset(for: contact) }) {
                                             Image(systemName: "person")
                                             Text("Meet Up")
@@ -111,13 +117,22 @@ struct ContentView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: NewTouchpointView(
                         saveTouchpoint: { newContact in
-                            contacts.append(newContact)
+                            addContact(newContact)
                         },
-                        existingContacts: contacts // Pass existing contacts to check for duplicates
+                        existingContacts: contacts
                     )) {
                         Label("Add Item", systemImage: "plus")
                     }
                 }
+            }
+            .onAppear {
+                print("📋 Contacts loaded: \(contacts.count)")
+                for contact in contacts {
+                    print("📌 Loaded Contact: \(contact.name), \(contact.phoneNumber)")
+                }
+            }
+            .onChange(of: refreshTrigger) {
+                print("🔄 Refreshing UI due to new contact.")
             }
         } detail: {
             Text("Select an item")
@@ -189,9 +204,36 @@ struct ContentView: View {
         }
     }
 
+    private func addContact(_ contact: Contact) {
+        print("🟡 Attempting to save contact: \(contact.name), \(contact.phoneNumber)")
+
+        do {
+            modelContext.insert(contact)
+            try modelContext.save()  // ✅ Explicitly save to SwiftData
+            print("✅ Contact successfully saved!")
+            printAllContacts()  // 🔍 Debugging: Print all stored contacts
+        } catch {
+            print("❌ Failed to save contact: \(error.localizedDescription)")
+        }
+
+        refreshTrigger.toggle() // 🔄 Force UI refresh
+    }
+
+    /// 🔍 Debugging Function: Fetch & print all stored contacts
+    private func printAllContacts() {
+        let request = FetchDescriptor<Contact>()
+        do {
+            let savedContacts = try modelContext.fetch(request)
+            print("📜 All saved contacts: \(savedContacts.map { "\($0.name), \($0.phoneNumber)" })")
+        } catch {
+            print("❌ Error fetching contacts: \(error.localizedDescription)")
+        }
+    }
+
     private func resetTouchpoint(for contact: Contact) {
         if let index = contacts.firstIndex(where: { $0.id == contact.id }) {
             contacts[index].lastContactDate = Date()
+            print("🔄 Touchpoint reset for: \(contact.name)")
         }
     }
 }

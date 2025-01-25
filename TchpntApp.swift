@@ -12,7 +12,7 @@ import SwiftData
 struct TchpntApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Contact.self, // ✅ Updated: Ensure Contact model is included in SwiftData schema
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -26,7 +26,7 @@ struct TchpntApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .modelContainer(sharedModelContainer) // ✅ Ensures SwiftData is properly injected into ContentView
         }
-        .modelContainer(sharedModelContainer)
     }
 }
