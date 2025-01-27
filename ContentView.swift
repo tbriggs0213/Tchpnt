@@ -1,3 +1,9 @@
+//  ContentView.swift
+//  Tchpnt
+//
+//  Created by Tanner Briggs on 1/3/25.
+//
+
 import SwiftUI
 import SwiftData
 
@@ -45,6 +51,8 @@ struct ContentView: View {
     @State private var selectedContact: Contact?
     @State private var expandedContactId: UUID?
     @State private var refreshTrigger = false
+    @State private var lastUpdateDate = Calendar.current.startOfDay(for: Date())
+
 
     var body: some View {
         NavigationSplitView {
@@ -55,7 +63,8 @@ struct ContentView: View {
                         .italic()
                 } else {
                     Section(header: Text("Touchpoints")) {
-                        ForEach(contacts.sorted(by: { $0.lastContactDate < $1.lastContactDate })) { contact in
+                        ForEach(contacts.sorted(by: { $0.urgency > $1.urgency })) { contact in
+
                             VStack {
                                 HStack {
                                     VStack(alignment: .leading) {
@@ -130,7 +139,13 @@ struct ContentView: View {
                 for contact in contacts {
                     print("📌 Loaded Contact: \(contact.name), \(contact.phoneNumber)")
                 }
+            
+                // ⏰ Schedule timer to check for midnight refresh every 60 seconds
+                Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+                    checkForMidnightRefresh()
+                }
             }
+
             .onChange(of: refreshTrigger) {
                 print("🔄 Refreshing UI due to new contact.")
             }
@@ -195,14 +210,17 @@ struct ContentView: View {
         switch contact.preferredAction {
         case "Text":
             openMessages(for: contact)
+            promptReset(for: contact)  // 🔄 Ensures reset prompt after messaging
         case "Call":
             makeCall(to: contact)
+            promptReset(for: contact)  // 🔄 Ensures reset prompt after calling
         case "Meet Up":
             promptReset(for: contact)
         default:
             break
         }
     }
+
 
     private func addContact(_ contact: Contact) {
         print("🟡 Attempting to save contact: \(contact.name), \(contact.phoneNumber)")
@@ -234,8 +252,25 @@ struct ContentView: View {
         if let index = contacts.firstIndex(where: { $0.id == contact.id }) {
             contacts[index].lastContactDate = Date()
             print("🔄 Touchpoint reset for: \(contact.name)")
+    
+            do {
+                try modelContext.save()  // ✅ Ensures persistence in SwiftData
+                print("✅ Touchpoint reset saved successfully!")
+            } catch {
+                print("❌ Failed to save reset touchpoint: \(error.localizedDescription)")
+            }
         }
     }
+
+    private func checkForMidnightRefresh() {
+        let today = Calendar.current.startOfDay(for: Date())
+        if today > lastUpdateDate {
+            lastUpdateDate = today
+            refreshTrigger.toggle()
+            print("⏰ Midnight passed, refreshing UI!")
+        }
+    }
+
 }
 
 #Preview {
