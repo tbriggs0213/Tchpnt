@@ -52,6 +52,9 @@ struct ContentView: View {
     @State private var expandedContactId: UUID?
     @State private var refreshTrigger = false
     @State private var lastUpdateDate = Calendar.current.startOfDay(for: Date())
+    @State private var contactToDelete: Contact?
+    @State private var showDeleteAlert = false
+
 
 
     var body: some View {
@@ -119,6 +122,14 @@ struct ContentView: View {
                                 }
                             }
                         }
+
+                        .onDelete { offsets in
+                            let sortedContacts = contacts.sorted(by: { $0.urgency > $1.urgency }) // ✅ Ensure sorted order
+                            for index in offsets {
+                                contactToDelete = sortedContacts[index] // ✅ Correct indexing
+                                showDeleteAlert = true
+                            }
+                        }
                     }
                 }
             }
@@ -152,6 +163,8 @@ struct ContentView: View {
         } detail: {
             Text("Select an item")
         }
+
+        //show reset alert
         .alert(isPresented: $showResetAlert) {
             Alert(
                 title: Text("Reset Touchpoint"),
@@ -164,6 +177,22 @@ struct ContentView: View {
                 secondaryButton: .cancel()
             )
         }
+
+        //show delete alert
+        .alert(isPresented: $showDeleteAlert) {
+            Alert(
+                title: Text("Delete Contact"),
+                message: Text("Are you sure you want to delete \(contactToDelete?.name ?? "this contact")?"),
+                primaryButton: .destructive(Text("Delete")) {
+                    if let contact = contactToDelete {
+                        deleteContact(contact)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        }
+
+      
     }
 
     private func contactStatus(for contact: Contact) -> String {
@@ -261,6 +290,18 @@ struct ContentView: View {
             }
         }
     }
+
+    //delete contact helper function
+    private func deleteContact(_ contact: Contact) {
+        modelContext.delete(contact)
+        do {
+            try modelContext.save()
+            print("🗑️ Deleted contact: \(contact.name)")
+        } catch {
+            print("❌ Failed to delete contact: \(error.localizedDescription)")
+        }
+    }
+
 
     private func checkForMidnightRefresh() {
         let today = Calendar.current.startOfDay(for: Date())
