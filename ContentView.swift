@@ -47,15 +47,17 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var contacts: [Contact]
 
-    @State private var showResetAlert = false
+    enum ActiveAlert {
+        case reset
+        case delete
+    }
+    
+    @State private var activeAlert: ActiveAlert?
     @State private var selectedContact: Contact?
     @State private var expandedContactId: UUID?
     @State private var refreshTrigger = false
     @State private var lastUpdateDate = Calendar.current.startOfDay(for: Date())
     @State private var contactToDelete: Contact?
-    @State private var showDeleteAlert = false
-
-
 
     var body: some View {
         NavigationSplitView {
@@ -67,7 +69,6 @@ struct ContentView: View {
                 } else {
                     Section(header: Text("Touchpoints")) {
                         ForEach(contacts.sorted(by: { $0.urgency > $1.urgency })) { contact in
-
                             VStack {
                                 HStack {
                                     VStack(alignment: .leading) {
@@ -78,7 +79,10 @@ struct ContentView: View {
                                             .foregroundColor(.gray)
                                     }
                                     Spacer()
-                                    Button(action: { handleAction(for: contact) }) {
+                                    Button(action: {
+                                        print("🔵 Quick action button tapped for \(contact.name)")
+                                        handleAction(for: contact)
+                                    }) {
                                         Image(systemName: iconName(for: contact.preferredAction))
                                             .foregroundColor(.blue)
                                     }
@@ -100,19 +104,41 @@ struct ContentView: View {
 
                                 if expandedContactId == contact.id {
                                     HStack {
-                                        Button(action: { openMessages(for: contact) }) {
+                                        Button(action: {
+                                            print("🔵 Text button tapped for \(contact.name)")
+                                            openMessages(for: contact)
+                                            print("📱 Messages opened")
+                                            selectedContact = contact
+                                            print("👤 Selected contact set to \(contact.name)")
+                                            activeAlert = .reset
+                                            print("🔔 Active alert set to reset")
+                                        }) {
                                             Image(systemName: "message")
                                             Text("Text")
                                         }
                                         .buttonStyle(.bordered)
 
-                                        Button(action: { makeCall(to: contact) }) {
+                                        Button(action: {
+                                            print("🔵 Call button tapped for \(contact.name)")
+                                            makeCall(to: contact)
+                                            print("📞 Call initiated")
+                                            selectedContact = contact
+                                            print("👤 Selected contact set to \(contact.name)")
+                                            activeAlert = .reset
+                                            print("🔔 Active alert set to reset")
+                                        }) {
                                             Image(systemName: "phone")
                                             Text("Call")
                                         }
                                         .buttonStyle(.bordered)
 
-                                        Button(action: { promptReset(for: contact) }) {
+                                        Button(action: {
+                                            print("🔵 Meet Up button tapped for \(contact.name)")
+                                            selectedContact = contact
+                                            print("👤 Selected contact set to \(contact.name)")
+                                            activeAlert = .reset
+                                            print("🔔 Active alert set to reset")
+                                        }) {
                                             Image(systemName: "person")
                                             Text("Meet Up")
                                         }
@@ -122,12 +148,11 @@ struct ContentView: View {
                                 }
                             }
                         }
-
                         .onDelete { offsets in
-                            let sortedContacts = contacts.sorted(by: { $0.urgency > $1.urgency }) // ✅ Ensure sorted order
+                            let sortedContacts = contacts.sorted(by: { $0.urgency > $1.urgency })
                             for index in offsets {
-                                contactToDelete = sortedContacts[index] // ✅ Correct indexing
-                                showDeleteAlert = true
+                                contactToDelete = sortedContacts[index]
+                                activeAlert = .delete
                             }
                         }
                     }
@@ -150,49 +175,55 @@ struct ContentView: View {
                 for contact in contacts {
                     print("📌 Loaded Contact: \(contact.name), \(contact.phoneNumber)")
                 }
-            
-                // ⏰ Schedule timer to check for midnight refresh every 60 seconds
-                Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
-                    checkForMidnightRefresh()
+
+                //moves timer to main thread so that it works even if app is backgrounded
+                DispatchQueue.main.async {
+                    // ⏰ Schedule timer to check for midnight refresh every 60 seconds
+                    Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+                        checkForMidnightRefresh()
+                    }
                 }
             }
-
             .onChange(of: refreshTrigger) {
                 print("🔄 Refreshing UI due to new contact.")
             }
         } detail: {
             Text("Select an item")
         }
-
-        //show reset alert
-        .alert(isPresented: $showResetAlert) {
-            Alert(
-                title: Text("Reset Touchpoint"),
-                message: Text("Do you want to reset \(selectedContact?.name ?? "")'s touchpoint?"),
-                primaryButton: .default(Text("Yes"), action: {
-                    if let contact = selectedContact {
-                        resetTouchpoint(for: contact)
-                    }
-                }),
-                secondaryButton: .cancel()
-            )
+        .alert("Reset Touchpoint", isPresented: .init(
+            get: { activeAlert == .reset },
+            set: { if !$0 { activeAlert = nil } }
+        )) {
+            Button("Yes") {
+                print("✅ Alert 'Yes' button tapped")
+                if let contact = selectedContact {
+                    resetTouchpoint(for: contact)
+                }
+                activeAlert = nil
+            }
+            Button("Cancel", role: .cancel) {
+                print("❌ Alert cancelled")
+                activeAlert = nil
+            }
+        } message: {
+            Text("Do you want to reset \(selectedContact?.name ?? "")'s touchpoint?")
         }
-
-        //show delete alert
-        .alert(isPresented: $showDeleteAlert) {
-            Alert(
-                title: Text("Delete Contact"),
-                message: Text("Are you sure you want to delete \(contactToDelete?.name ?? "this contact")?"),
-                primaryButton: .destructive(Text("Delete")) {
-                    if let contact = contactToDelete {
-                        deleteContact(contact)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
+        .alert("Delete Contact", isPresented: .init(
+            get: { activeAlert == .delete },
+            set: { if !$0 { activeAlert = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let contact = contactToDelete {
+                    deleteContact(contact)
+                }
+                activeAlert = nil
+            }
+            Button("Cancel", role: .cancel) {
+                activeAlert = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete \(contactToDelete?.name ?? "this contact")?")
         }
-
-      
     }
 
     private func contactStatus(for contact: Contact) -> String {
@@ -217,11 +248,6 @@ struct ContentView: View {
         UIApplication.shared.open(url)
     }
 
-    private func promptReset(for contact: Contact) {
-        selectedContact = contact
-        showResetAlert = true
-    }
-
     private func iconName(for action: String) -> String {
         switch action {
         case "Text":
@@ -236,20 +262,31 @@ struct ContentView: View {
     }
 
     private func handleAction(for contact: Contact) {
+        print("🎯 handleAction called for \(contact.name)")
         switch contact.preferredAction {
         case "Text":
             openMessages(for: contact)
-            promptReset(for: contact)  // 🔄 Ensures reset prompt after messaging
+            print("📱 Messages opened")
+            selectedContact = contact
+            print("👤 Selected contact set to \(contact.name)")
+            activeAlert = .reset
+            print("🔔 Active alert set to reset")
         case "Call":
             makeCall(to: contact)
-            promptReset(for: contact)  // 🔄 Ensures reset prompt after calling
+            print("📞 Call initiated")
+            selectedContact = contact
+            print("👤 Selected contact set to \(contact.name)")
+            activeAlert = .reset
+            print("🔔 Active alert set to reset")
         case "Meet Up":
-            promptReset(for: contact)
+            selectedContact = contact
+            print("👤 Selected contact set to \(contact.name)")
+            activeAlert = .reset
+            print("🔔 Active alert set to reset")
         default:
             break
         }
     }
-
 
     private func addContact(_ contact: Contact) {
         print("🟡 Attempting to save contact: \(contact.name), \(contact.phoneNumber)")
@@ -266,7 +303,6 @@ struct ContentView: View {
         refreshTrigger.toggle() // 🔄 Force UI refresh
     }
 
-    /// 🔍 Debugging Function: Fetch & print all stored contacts
     private func printAllContacts() {
         let request = FetchDescriptor<Contact>()
         do {
@@ -278,20 +314,20 @@ struct ContentView: View {
     }
 
     private func resetTouchpoint(for contact: Contact) {
-        if let index = contacts.firstIndex(where: { $0.id == contact.id }) {
-            contacts[index].lastContactDate = Date()
-            print("🔄 Touchpoint reset for: \(contact.name)")
-    
-            do {
-                try modelContext.save()  // ✅ Ensures persistence in SwiftData
-                print("✅ Touchpoint reset saved successfully!")
-            } catch {
-                print("❌ Failed to save reset touchpoint: \(error.localizedDescription)")
-            }
+        print("🔄 Starting reset for \(contact.name)")
+        contact.lastContactDate = Date()
+        print("📅 Updated lastContactDate to \(contact.lastContactDate)")
+
+        do {
+            try modelContext.save()
+            print("💾 Changes saved to SwiftData")
+            refreshTrigger.toggle()
+            print("🔄 UI refresh triggered")
+        } catch {
+            print("❌ Failed to save reset touchpoint: \(error.localizedDescription)")
         }
     }
 
-    //delete contact helper function
     private func deleteContact(_ contact: Contact) {
         modelContext.delete(contact)
         do {
@@ -302,16 +338,16 @@ struct ContentView: View {
         }
     }
 
-
     private func checkForMidnightRefresh() {
         let today = Calendar.current.startOfDay(for: Date())
         if today > lastUpdateDate {
             lastUpdateDate = today
             refreshTrigger.toggle()
             print("⏰ Midnight passed, refreshing UI!")
+        } else {
+            print("No refresh needed, Same day, but timer works.")
         }
     }
-
 }
 
 #Preview {
