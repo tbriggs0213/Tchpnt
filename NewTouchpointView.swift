@@ -11,10 +11,11 @@ import ContactsUI
 struct NewTouchpointView: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var contactName: String = ""
-    @State private var phoneNumber: String = "" // Store the contact’s phone number
+    @State private var phoneNumber: String = "" // Store the contact's phone number
     @State private var cadence: Int = 7 // Default to weekly
     @State private var customCadence: String = "" // Custom cadence starts blank
     @State private var preferredAction: String = "Text"
+    @State private var contactType: String = "Personal" // Default to Personal
     @State private var showContactPicker = false // State for showing contact picker
     @State private var showDuplicateAlert = false // Alert for duplicate contacts
 
@@ -30,6 +31,14 @@ struct NewTouchpointView: View {
                     }) {
                         Text(contactName.isEmpty ? "Select Contact" : contactName)
                     }
+                }
+
+                Section(header: Text("Contact Type")) {
+                    Picker("Type", selection: $contactType) {
+                        Text("Personal").tag("Personal")
+                        Text("Business").tag("Business")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
                 }
 
                 Section(header: Text("Cadence")) {
@@ -111,7 +120,8 @@ struct NewTouchpointView: View {
             phoneNumber: phoneNumber,
             cadence: effectiveCadence,
             lastContactDate: Date(),
-            preferredAction: preferredAction
+            preferredAction: preferredAction,
+            contactType: contactType
         )
         
         saveTouchpoint(newTouchpoint)
