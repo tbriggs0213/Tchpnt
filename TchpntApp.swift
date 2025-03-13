@@ -14,7 +14,13 @@ struct TchpntApp: App {
         let schema = Schema([
             Contact.self, // ✅ Updated: Ensure Contact model is included in SwiftData schema
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        
+        // Configure CloudKit integration
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .private("iCloud.com.tannerbriggs.tchpnt")
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
